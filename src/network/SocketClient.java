@@ -479,18 +479,21 @@ public class SocketClient {
   }
 
   /**
-   * 입력중 상태 전송
+   * 입력중 상태 전송 (비동기로 처리하여 EDT 블로킹 방지)
    * 
    * @param roomId   채팅방 ID
    * @param isTyping 입력중 여부 (true: 시작, false: 종료)
    */
   public void sendTypingStatus(String roomId, boolean isTyping) {
-    synchronized (writerLock) {
-      if (writer != null) {
-        String status = isTyping ? "START" : "STOP";
-        writer.println("TYPING:" + roomId + ":" + username + ":" + status);
+    // EDT 블로킹 방지를 위해 백그라운드 스레드에서 전송
+    new Thread(() -> {
+      synchronized (writerLock) {
+        if (writer != null) {
+          String status = isTyping ? "START" : "STOP";
+          writer.println("TYPING:" + roomId + ":" + username + ":" + status);
+        }
       }
-    }
+    }).start();
   }
 
   public void stop() {
