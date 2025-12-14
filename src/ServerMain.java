@@ -1,16 +1,20 @@
 import network.SocketServer;
 import java.io.File;
 
+/**
+ * 서버 애플리케이션의 진입점 클래스
+ * 미니게임 서버들과 메인 카카오톡 서버를 시작
+ */
 public class ServerMain {
+    /** 메인 메서드: 서버 시작 */
     public static void main(String[] args) {
         try {
-            // 1. Launch MiniGame Servers
-            launchGameServer("MINIGAMES/TypingGame", "server.TypingGameServer", "8000"); // Internal port 8000
-            launchGameServer("MINIGAMES/SwipeBreakoutGame", "server.GameServer", "9000"); // Internal port 9000
-            launchGameServer("MINIGAMES/VolleyGame", "server.VolleyServer", "9001"); // Internal port 9001 (Changed from
-                                                                                     // 9000)
+            // 1. 미니게임 서버들 시작
+            launchGameServer("MINIGAMES/TypingGame", "server.TypingGameServer", "8000"); // 타이핑 게임
+            launchGameServer("MINIGAMES/SwipeBreakoutGame", "server.GameServer", "9000"); // 벽돌깨기
+            launchGameServer("MINIGAMES/VolleyGame", "server.VolleyServer", "9001"); // 배구 게임
 
-            // 2. Start Main Kakao Server
+            // 2. 메인 카카오 서버 시작
             SocketServer server = new SocketServer(12345);
             server.start();
 
@@ -24,39 +28,33 @@ public class ServerMain {
     private static void launchGameServer(String projectPath, String mainClass, String portArg) {
         new Thread(() -> {
             try {
-                String classpath = "../" + projectPath + "/bin"; // Assuming running from NPTP-KakaoTalk/bin or similar,
-                                                                 // adj as needed
-                // Actually, let's use absolute paths or relative to project root if we run from
-                // IDE
-                // Better to use "java -cp .../bin mainClass"
+                String classpath = "../" + projectPath + "/bin";
 
                 String userDir = System.getProperty("user.dir");
-                // Parent dir of NPTP-KakaoTalk is '네프'
                 String rootDir = new java.io.File(userDir).getParent();
                 String gameBinPath = rootDir + "/" + projectPath + "/bin";
 
-                System.out.println("Launching " + mainClass + " from " + gameBinPath);
+                System.out.println(mainClass + "를 " + gameBinPath + "에서 실행합니다.");
 
-                File gameDir = new File(rootDir + "/" + projectPath); // Set CWD to the project root (e.g.,
-                                                                      // MINIGAMES/TypingGame)
+                File gameDir = new File(rootDir + "/" + projectPath); // 작업 디렉토리를 프로젝트 루트(예: MINIGAMES/TypingGame)로 설정
                 System.out.println(
-                        "Setting gameDir: " + gameDir.getAbsolutePath() + " (Exists: " + gameDir.exists() + ")");
+                        "게임 디렉토리 설정: " + gameDir.getAbsolutePath() + " (존재 여부: " + gameDir.exists() + ")");
 
                 ProcessBuilder pb = new ProcessBuilder("java", "-cp", gameBinPath, mainClass, portArg);
-                pb.directory(gameDir); // Critical: Set working directory so it finds local assets (words.txt, etc.)
-                pb.inheritIO(); // Show output in main console
+                pb.directory(gameDir);
+                pb.inheritIO();
                 Process p = pb.start();
 
                 Runtime.getRuntime().addShutdownHook(new Thread(() -> {
                     if (p.isAlive()) {
                         p.destroy();
-                        System.out.println("Stopped " + mainClass);
+                        System.out.println(mainClass + " 중지됨");
                     }
                 }));
 
                 p.waitFor();
             } catch (Exception e) {
-                System.err.println("Failed to launch " + mainClass);
+                System.err.println(mainClass + " 실행 실패");
                 e.printStackTrace();
             }
         }).start();

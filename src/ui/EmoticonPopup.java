@@ -9,16 +9,23 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.Map;
 import java.util.function.Consumer;
 
+/**
+ * 이모티콘 선택 팝업 메뉴 클래스
+ * 사용 가능한 이모티콘 목록을 표시하고 선택 이벤트를 처리
+ */
 public class EmoticonPopup extends JPopupMenu {
-  private Consumer<String> onSelect;
+  private Consumer<String> onSelect; // 이모티콘 선택 시 콜백
+
+  // 사용 가능한 이모티콘 목록
   private static final String[] EMOTICONS = {
       "sangsang_happy", "sangsang_sad", "sangsang_angry",
       "sangsang_love", "sangsang_ok", "sangsang_hello"
   };
 
-  // Image cache to avoid repeated loading
+  // 이미지 캐시 (반복 로딩 방지)
   private static final Map<String, ImageIcon> imageCache = new ConcurrentHashMap<>();
 
+  /** 생성자: 팝업 메뉴 초기화 */
   public EmoticonPopup(Consumer<String> onSelect) {
     this.onSelect = onSelect;
     setLayout(new GridLayout(2, 3, 5, 5));
@@ -40,7 +47,7 @@ public class EmoticonPopup extends JPopupMenu {
     label.setPreferredSize(new Dimension(60, 60));
     label.setHorizontalAlignment(SwingConstants.CENTER);
 
-    // Load image asynchronously with cache to avoid EDT blocking
+    // 이미지 비동기 로딩 (캐시 사용, EDT 블로킹 방지)
     if (imageCache.containsKey(emojiName)) {
       label.setIcon(imageCache.get(emojiName));
     } else {

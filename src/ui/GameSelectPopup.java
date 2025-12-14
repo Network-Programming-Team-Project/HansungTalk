@@ -9,22 +9,27 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
 
+/**
+ * 게임 선택 팝업 메뉴 클래스
+ * 미니게임 목록을 표시하고 게임 초대 이벤트를 처리
+ */
 public class GameSelectPopup extends JPopupMenu {
-  private Consumer<String> onSelect;
+  private Consumer<String> onSelect; // 게임 선택 시 콜백
 
-  // Map of Friendly Name -> Internal Code
+  // 게임 이름 -> 내부 코드 매핑
   private static final Map<String, String> GAMES = new HashMap<>();
 
-  // Image cache to avoid repeated loading
+  // 이미지 캐시 (반복 로딩 방지)
   private static final Map<String, ImageIcon> imageCache = new ConcurrentHashMap<>();
 
   static {
-    GAMES.put("슈팅 게임", "SPACE");
-    GAMES.put("벽돌깨기", "BRICK");
-    GAMES.put("타이핑 게임", "TYPING");
-    GAMES.put("배구 게임", "VOLLEY");
+    GAMES.put("슈팅 게임", "SPACE"); // 슈팅 게임
+    GAMES.put("벽돌깨기", "BRICK"); // 벽돌깨기 게임
+    GAMES.put("타이핑 게임", "TYPING"); // 타이핑 게임
+    GAMES.put("배구 게임", "VOLLEY"); // 배구 게임
   }
 
+  /** 생성자: 팝업 메뉴 초기화 */
   public GameSelectPopup(Consumer<String> onSelect) {
     this.onSelect = onSelect;
     setLayout(new GridLayout(2, 2, 5, 5));
@@ -32,7 +37,7 @@ public class GameSelectPopup extends JPopupMenu {
     setBackground(Color.WHITE);
     setPreferredSize(new Dimension(220, 220));
 
-    // Order matters for GridLayout
+    // GridLayout에 맞춰 순서 배치
     add(createGameButton("슈팅 게임", "space"));
     add(createGameButton("벽돌깨기", "brick"));
     add(createGameButton("타이핑 게임", "typing"));
@@ -49,7 +54,7 @@ public class GameSelectPopup extends JPopupMenu {
     iconLabel.setPreferredSize(new Dimension(60, 60));
     iconLabel.setHorizontalAlignment(SwingConstants.CENTER);
 
-    // Load image asynchronously with cache to avoid EDT blocking
+    // 이미지 비동기 로딩 (캐시 사용, EDT 블로킹 방지)
     if (imageCache.containsKey(iconName)) {
       iconLabel.setIcon(imageCache.get(iconName));
     } else {
@@ -74,7 +79,7 @@ public class GameSelectPopup extends JPopupMenu {
     panel.addMouseListener(new MouseAdapter() {
       @Override
       public void mouseClicked(MouseEvent e) {
-        // Return internal code
+        // 내부 코드 반환
         onSelect.accept(GAMES.get(gameName));
         setVisible(false);
       }

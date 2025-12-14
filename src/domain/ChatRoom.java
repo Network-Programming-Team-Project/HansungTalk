@@ -1,12 +1,17 @@
 package domain;
 
+/**
+ * 채팅방 정보를 담는 도메인 클래스
+ * 채팅방의 참여자, 메시지 등을 관리
+ */
 public class ChatRoom {
-    private String id;
-    private String name;
-    private User[] participants;
-    private Message[] messages;
-    private Emoji profileEmoji;
+    private String id; // 채팅방 고유 ID
+    private String name; // 채팅방 이름
+    private User[] participants; // 참여자 목록
+    private Message[] messages; // 메시지 목록
+    private Emoji profileEmoji; // 채팅방 프로필 이모지
 
+    /** 기본 생성자: ID와 이름만 설정 */
     public ChatRoom(String id, String name) {
         this.id = id;
         this.name = name;

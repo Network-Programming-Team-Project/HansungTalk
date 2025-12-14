@@ -10,29 +10,35 @@ import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ConcurrentHashMap;
 
+/**
+ * 서버 소켓 통신을 담당하는 클래스
+ * 클라이언트 연결 관리, 채팅방 관리, 메시지 브로드캐스트 등을 처리
+ */
 public class SocketServer {
-  private ServerSocket serverSocket;
-  private int port;
-  private boolean running = false;
-  private Thread acceptThread;
-  private List<SocketClientHandler> clients = new CopyOnWriteArrayList<>();
-  private ServerLogListener logListener;
+  private ServerSocket serverSocket; // 서버 소켓
+  private int port; // 서버 포트 번호
+  private boolean running = false; // 서버 실행 상태
+  private Thread acceptThread; // 클라이언트 연결 수락 스레드
+  private List<SocketClientHandler> clients = new CopyOnWriteArrayList<>(); // 연결된 클라이언트 목록
+  private ServerLogListener logListener; // 로그 리스너
 
-  // Room management
-  // activeRoomUsers: roomId -> Set of usernames currently "looking" at the room
-  // (online & accepted)
+  // 채팅방 관리
+  // activeRoomUsers: roomId -> 현재 채팅방을 보고 있는 사용자 집합
   private Map<String, Set<String>> activeRoomUsers = new ConcurrentHashMap<>();
-  // roomAllMembers: roomId -> Set of usernames who belong to the room (invited or
-  // joined)
+  // roomAllMembers: roomId -> 채팅방에 속한 모든 사용자 집합 (초대됨 또는 참여함)
   private Map<String, Set<String>> roomAllMembers = new ConcurrentHashMap<>();
 
-  // User game scores: username -> (gameType -> best score)
+  // 사용자 게임 점수: username -> (gameType -> 최고 점수)
   private Map<String, Map<String, Integer>> userGameScores = new ConcurrentHashMap<>();
 
-  // Chat history: roomId -> list of messages (stored as raw protocol strings)
+  // 채팅 히스토리: roomId -> 메시지 목록 (프로토콜 문자열로 저장)
   private Map<String, java.util.List<String>> roomChatHistory = new ConcurrentHashMap<>();
-  private static final int MAX_HISTORY_PER_ROOM = 100; // Keep last 100 messages per room
+  private static final int MAX_HISTORY_PER_ROOM = 100; // 채팅방당 최대 히스토리 개수
 
+  // 안읽은 메시지 수: roomId -> (username -> unreadCount)
+  private Map<String, Map<String, Integer>> unreadCounts = new ConcurrentHashMap<>();
+
+  /** 서버 로그 리스너 인터페이스 */
   public interface ServerLogListener {
     void onLog(String message);
 
@@ -136,6 +142,17 @@ public class SocketServer {
     activeRoomUsers.computeIfAbsent(roomId, k -> ConcurrentHashMap.newKeySet()).add(username);
     roomAllMembers.computeIfAbsent(roomId, k -> ConcurrentHashMap.newKeySet()).add(username);
     log(username + " joined room: " + roomId);
+
+    // 안읽은 메시지 수 초기화
+    Map<String, Integer> roomUnread = unreadCounts.get(roomId);
+    if (roomUnread != null) {
+      int previousUnread = roomUnread.getOrDefault(username, 0);
+      roomUnread.put(username, 0);
+      if (previousUnread > 0) {
+        // 해당 사용자에게 unread 초기화 알림
+        broadcastUnreadUpdate(roomId, username, 0);
+      }
+    }
 
     // Send chat history to the user who just joined
     sendChatHistory(roomId, username);
@@ -267,6 +284,9 @@ public class SocketServer {
               server.saveMessage(roomId, enrichedMsg);
 
               server.broadcastToRoom(roomId, enrichedMsg, username);
+
+              // 안읽은 메시지 수 증가 (방에 없는 사용자들)
+              server.incrementUnreadCounts(roomId, username);
 
               server.notifyChatListUpdate(roomId, content, username);
             }
@@ -494,5 +514,56 @@ public class SocketServer {
         break;
       }
     }
+  }
+
+  /**
+   * 방에 없는 사용자들의 안읽은 메시지 수 증가
+   */
+  public void incrementUnreadCounts(String roomId, String senderUsername) {
+    Set<String> members = roomAllMembers.get(roomId);
+    Set<String> active = activeRoomUsers.get(roomId);
+    if (members == null)
+      return;
+
+    Map<String, Integer> roomUnread = unreadCounts.computeIfAbsent(roomId, k -> new ConcurrentHashMap<>());
+
+    for (String member : members) {
+      // 발신자는 제외, 방에 활성화되어 있는 사용자도 제외
+      if (member.equals(senderUsername))
+        continue;
+      if (active != null && active.contains(member))
+        continue;
+
+      int newCount = roomUnread.getOrDefault(member, 0) + 1;
+      roomUnread.put(member, newCount);
+
+      // 해당 사용자에게 unread 업데이트 알림
+      broadcastUnreadUpdate(roomId, member, newCount);
+    }
+  }
+
+  /**
+   * 특정 사용자에게 안읽은 메시지 수 업데이트 전송
+   */
+  private void broadcastUnreadUpdate(String roomId, String username, int count) {
+    // Format: UNREAD_UPDATE:roomId:count
+    String message = "UNREAD_UPDATE:" + roomId + ":" + count;
+    for (SocketClientHandler client : clients) {
+      if (username.equals(client.getUsername())) {
+        client.sendMessage(message);
+        log("Sent unread update to " + username + " for room " + roomId + ": " + count);
+        break;
+      }
+    }
+  }
+
+  /**
+   * 특정 사용자의 특정 방 안읽은 메시지 수 조회
+   */
+  public int getUnreadCount(String roomId, String username) {
+    Map<String, Integer> roomUnread = unreadCounts.get(roomId);
+    if (roomUnread == null)
+      return 0;
+    return roomUnread.getOrDefault(username, 0);
   }
 }

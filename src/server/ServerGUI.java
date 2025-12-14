@@ -6,14 +6,19 @@ import javax.swing.*;
 import java.awt.*;
 import java.awt.event.ActionEvent;
 
+/**
+ * 서버 GUI 클래스
+ * 서버 시작/중지, 로그 표시, 클라이언트 수 표시 등 서버 관리 UI 제공
+ */
 public class ServerGUI extends JFrame implements SocketServer.ServerLogListener {
-  private SocketServer server;
-  private JTextArea logArea;
-  private JButton toggleButton;
-  private JLabel statusLabel;
-  private JLabel clientCountLabel;
-  private boolean isRunning = false;
+  private SocketServer server; // 소켓 서버 인스턴스
+  private JTextArea logArea; // 로그 표시 영역
+  private JButton toggleButton; // 서버 시작/중지 버튼
+  private JLabel statusLabel; // 서버 상태 레이블
+  private JLabel clientCountLabel; // 연결된 클라이언트 수 레이블
+  private boolean isRunning = false; // 서버 실행 상태
 
+  /** 생성자: GUI 초기화 */
   public ServerGUI() {
     setTitle("KakaoTalk Server");
     setSize(600, 400);

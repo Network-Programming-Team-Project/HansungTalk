@@ -5,26 +5,35 @@ import java.awt.*;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 
+/**
+ * 메인 페이지 UI 클래스
+ * 친구 목록, 채팅 목록, 더보기 탭을 관리하는 메인 화면
+ */
 public class MainPage extends JPanel {
-  private ClientApp app;
+  private ClientApp app; // 부모 앱 참조
+  private DefaultListModel<String> listModel; // 목록 데이터 모델
 
-  private DefaultListModel<String> listModel;
-
+  /** 탭 종류 열거형 */
   private enum Tab {
-    FRIENDS, CHATS, MORE
+    FRIENDS, // 친구 목록 탭
+    CHATS, // 채팅 목록 탭
+    MORE // 더보기 탭
   }
 
-  private Tab currentTab = Tab.FRIENDS;
-  private JPanel contentPanel;
-  private JLabel titleLabel;
-  private JList<String> mainList;
-  private SidebarButton friendsBtn;
-  private SidebarButton chatsBtn;
-  private SidebarButton moreBtn;
+  private Tab currentTab = Tab.FRIENDS; // 현재 선택된 탭
+  private JPanel contentPanel; // 메인 컨텐츠 패널
+  private JLabel titleLabel; // 페이지 제목 레이블
+  private JList<String> mainList; // 메인 리스트
+  private SidebarButton friendsBtn; // 친구 탭 버튼
+  private SidebarButton chatsBtn; // 채팅 탭 버튼
+  private SidebarButton moreBtn; // 더보기 탭 버튼
 
-  private String[] cachedUsers = new String[0];
-  private java.util.Map<String, String> cachedChats = new java.util.HashMap<>();
+  // 캐시 데이터
+  private String[] cachedUsers = new String[0]; // 온라인 사용자 캐시
+  private java.util.Map<String, String> cachedChats = new java.util.HashMap<>(); // 채팅방 캐시
+  private int totalUnreadCount = 0; // 총 안읽은 메시지 수
 
+  /** 생성자: 메인 페이지 UI 초기화 */
   public MainPage(ClientApp app) {
     this.app = app;
     setLayout(new BorderLayout());
@@ -45,8 +54,9 @@ public class MainPage extends JPanel {
     sidebar.add(friendsBtn);
     sidebar.add(Box.createVerticalStrut(20));
     sidebar.add(chatsBtn);
-    sidebar.add(Box.createVerticalStrut(20));
-    sidebar.add(moreBtn);
+    // Remove MORE tab as requested
+    // sidebar.add(Box.createVerticalStrut(20));
+    // sidebar.add(moreBtn);
 
     add(sidebar, BorderLayout.WEST);
 
@@ -69,8 +79,9 @@ public class MainPage extends JPanel {
     JPanel headerIcons = new JPanel(new FlowLayout(FlowLayout.RIGHT, 12, 0));
     headerIcons.setBackground(Color.WHITE);
 
-    JLabel searchIcon = new JLabel("🔍");
-    searchIcon.setFont(new Font("SansSerif", Font.PLAIN, 18));
+    // Removed search icon as requested
+    // JLabel searchIcon = new JLabel("🔍");
+    // searchIcon.setFont(new Font("SansSerif", Font.PLAIN, 18));
     JLabel addIcon = new JLabel("➕");
     addIcon.setFont(new Font("SansSerif", Font.PLAIN, 18));
     addIcon.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
@@ -81,7 +92,7 @@ public class MainPage extends JPanel {
       }
     });
 
-    headerIcons.add(searchIcon);
+    // headerIcons.add(searchIcon);
     headerIcons.add(addIcon);
     header.add(headerIcons, BorderLayout.EAST);
 
@@ -144,31 +155,32 @@ public class MainPage extends JPanel {
                 final String finalTargetUser = targetUser;
                 final String finalStatusMsg = statusMsg;
 
-                // Check if we have cached profile, otherwise request it
+                // Check if we have cached profile
                 java.util.Map<String, Integer> cachedScores = app.getSocketClient().getCachedProfile(targetUser);
 
                 if (cachedScores != null) {
-                  // Use cached scores
+                  // Use cached scores directly
                   showProfilePopup(finalTargetUser, finalStatusMsg, cachedScores);
                 } else {
-                  // Request from server and show popup with zeros, update when data arrives
-                  java.util.Map<String, Integer> emptyScores = new java.util.HashMap<>();
+                  // Request in background, then show popup on EDT
+                  new Thread(() -> {
+                    // Request profile (network call - must be off EDT)
+                    app.getSocketClient().requestProfile(finalTargetUser);
 
-                  // Set up listener for profile response
-                  app.getSocketClient().setProfileListener((username, scores) -> {
-                    if (username.equals(finalTargetUser)) {
-                      util.ClientLogger.ui("Profile data received for " + username + ": " + scores);
+                    // Wait a bit for response to arrive
+                    try {
+                      Thread.sleep(200);
+                    } catch (Exception ex) {
                     }
-                  });
 
-                  // Request profile
-                  app.getSocketClient().requestProfile(targetUser);
-
-                  // Show popup (scores will initially be empty/cached)
-                  showProfilePopup(finalTargetUser, finalStatusMsg,
-                      app.getSocketClient().getCachedProfile(targetUser) != null
-                          ? app.getSocketClient().getCachedProfile(targetUser)
-                          : emptyScores);
+                    // Show popup on EDT with whatever we got
+                    javax.swing.SwingUtilities.invokeLater(() -> {
+                      java.util.Map<String, Integer> scores = app.getSocketClient().getCachedProfile(finalTargetUser);
+                      if (scores == null)
+                        scores = new java.util.HashMap<>();
+                      showProfilePopup(finalTargetUser, finalStatusMsg, scores);
+                    });
+                  }).start();
                 }
               }
             }
@@ -225,6 +237,26 @@ public class MainPage extends JPanel {
               }
               mainList.repaint();
             }
+          });
+        }
+      });
+
+      // Listen for unread count updates
+      app.getSocketClient().setUnreadListener(new network.SocketClient.UnreadListener() {
+        @Override
+        public void onUnreadCountUpdated(String roomId, int count) {
+          SwingUtilities.invokeLater(() -> {
+            if (currentTab == Tab.CHATS) {
+              mainList.repaint();
+            }
+          });
+        }
+
+        @Override
+        public void onTotalUnreadUpdated(int total) {
+          SwingUtilities.invokeLater(() -> {
+            totalUnreadCount = total;
+            chatsBtn.repaint(); // 채팅 버튼 재렌더링
           });
         }
       });
@@ -375,6 +407,7 @@ public class MainPage extends JPanel {
       this.tab = tab;
       setPreferredSize(new Dimension(66, 50));
       setMaximumSize(new Dimension(66, 50));
+      setAlignmentX(Component.CENTER_ALIGNMENT); // Ensure centering in BoxLayout
       setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
       addMouseListener(new MouseAdapter() {
         @Override
@@ -417,15 +450,32 @@ public class MainPage extends JPanel {
       int cy = getHeight() / 2;
 
       if (tab == Tab.FRIENDS) {
-        // Draw User Icon
-        g2.fillOval(cx - 10, cy - 12, 20, 20); // Head
-        g2.fillArc(cx - 14, cy + 2, 28, 20, 0, 180); // Body
+        // Draw User Icon (Reduced size)
+        g2.fillOval(cx - 9, cy - 11, 18, 18); // Head
+        g2.fillArc(cx - 12, cy + 3, 24, 16, 0, 180); // Body
       } else if (tab == Tab.CHATS) {
-        // Draw Chat Bubble
-        g2.fillRoundRect(cx - 12, cy - 10, 24, 18, 8, 8);
-        int[] xPoints = { cx - 5, cx + 5, cx - 8 };
-        int[] yPoints = { cy + 8, cy + 8, cy + 14 };
+        // Draw Chat Bubble (Reduced size)
+        g2.fillRoundRect(cx - 11, cy - 9, 22, 16, 8, 8);
+        int[] xPoints = { cx - 4, cx + 4, cx - 7 };
+        int[] yPoints = { cy + 7, cy + 7, cy + 12 };
         g2.fillPolygon(xPoints, yPoints, 3);
+
+        // Draw unread badge if there are unread messages
+        if (totalUnreadCount > 0) {
+          g2.setColor(new Color(255, 70, 70));
+          int badgeSize = 14; // Slightly smaller badge
+          int badgeX = cx + 8;
+          int badgeY = cy - 14;
+          g2.fillOval(badgeX, badgeY, badgeSize, badgeSize);
+
+          g2.setColor(Color.WHITE);
+          g2.setFont(new Font("SansSerif", Font.BOLD, 9));
+          String countStr = totalUnreadCount > 99 ? "99+" : String.valueOf(totalUnreadCount);
+          FontMetrics fm = g2.getFontMetrics();
+          int textX = badgeX + (badgeSize - fm.stringWidth(countStr)) / 2;
+          int textY = badgeY + (badgeSize + fm.getAscent() - fm.getDescent()) / 2;
+          g2.drawString(countStr, textX, textY);
+        }
       } else {
         // Draw Dots
         g2.fillOval(cx - 12, cy - 2, 4, 4);
@@ -447,22 +497,45 @@ public class MainPage extends JPanel {
 
     if (dialog.isConfirmed()) {
       java.util.List<String> selectedUsers = dialog.getSelectedUsers();
-      // Create group chat
-      // Room ID: group_timestamp_creator
-      String roomId = "group_" + System.currentTimeMillis() + "_" + myName;
 
-      // Invite users
-      for (String user : selectedUsers) {
-        app.getSocketClient().inviteUser(roomId, user);
+      // Prompt for Room Name
+      String defaultName = String.join(", ", selectedUsers);
+      if (defaultName.length() > 20)
+        defaultName = defaultName.substring(0, 20) + "...";
+
+      String roomName = (String) JOptionPane.showInputDialog(
+          this,
+          "채팅방 이름을 입력하세요:",
+          "채팅방 생성",
+          JOptionPane.PLAIN_MESSAGE,
+          null,
+          null,
+          defaultName);
+
+      if (roomName != null && !roomName.trim().isEmpty()) {
+        // Create group chat ID
+        // Room ID: group_timestamp_creator
+        String roomId = "group_" + System.currentTimeMillis() + "_" + myName;
+
+        // 1. Open chat page FIRST (This ensures we join the room and set listeners)
+        app.showGroupChat(roomId, roomName);
+
+        // 2. Invite users (in background/separate thread to avoid any blocking on EDT?
+        // Writer is usually fast, but safe to do after showing UI)
+        new Thread(() -> {
+          try {
+            // Small delay to ensure join is processed if needed, though usually not
+            // strictly necessary
+            // if server handles out of order. But here we just want to ensure UI is up.
+            Thread.sleep(100);
+            for (String user : selectedUsers) {
+              app.getSocketClient().inviteUser(roomId, user);
+            }
+          } catch (Exception ex) {
+            ex.printStackTrace();
+          }
+        }).start();
       }
-
-      // Open chat page
-      // For group chat, we might want to pass the list of names or a group name
-      String roomName = String.join(", ", selectedUsers);
-      if (roomName.length() > 20)
-        roomName = roomName.substring(0, 20) + "...";
-
-      app.showGroupChat(roomId, roomName);
     }
   }
 
@@ -559,6 +632,40 @@ public class MainPage extends JPanel {
         subLabel.setForeground(KakaoColors.TEXT_SECONDARY);
         subLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
         textPanel.add(subLabel);
+
+        // Unread badge for this chat room
+        java.util.Map<String, Integer> unreadMap = app.getSocketClient().getCachedUnreadCounts();
+        int unreadCount = unreadMap.getOrDefault(roomId, 0);
+        if (unreadCount > 0) {
+          JLabel badgeLabel = new JLabel() {
+            @Override
+            protected void paintComponent(Graphics g) {
+              super.paintComponent(g);
+              Graphics2D g2 = (Graphics2D) g.create();
+              g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+
+              g2.setColor(new Color(255, 70, 70));
+              // Use fixed size for circle
+              g2.fillOval(0, 0, 22, 22);
+
+              g2.setColor(Color.WHITE);
+              g2.setFont(new Font("SansSerif", Font.BOLD, 10));
+              String countStr = unreadCount > 99 ? "99+" : String.valueOf(unreadCount);
+              FontMetrics fm = g2.getFontMetrics();
+              int textX = (22 - fm.stringWidth(countStr)) / 2;
+              int textY = (22 + fm.getAscent() - fm.getDescent()) / 2;
+              g2.drawString(countStr, textX, textY);
+
+              g2.dispose();
+            }
+          };
+          badgeLabel.setPreferredSize(new Dimension(22, 22));
+          // Wrap in a panel to prevent layout from stretching it
+          JPanel badgeContainer = new JPanel(new FlowLayout(FlowLayout.RIGHT, 0, 0));
+          badgeContainer.setOpaque(false);
+          badgeContainer.add(badgeLabel);
+          add(badgeContainer, BorderLayout.EAST);
+        }
       } else if (currentTab == Tab.MORE) {
         textPanel.add(Box.createVerticalStrut(2));
         JLabel subLabel = new JLabel("설명");

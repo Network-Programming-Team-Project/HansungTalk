@@ -10,14 +10,19 @@ import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.io.File;
 
+/**
+ * 채팅 페이지 UI 클래스
+ * 1:1 또는 그룹 채팅 화면을 담당하며 메시지 표시 및 송수신 처리
+ */
 public class ChatPage extends JPanel implements SocketClient.MessageListener {
-  private ClientApp app;
-  private DefaultListModel<ChatMessage> listModel;
-  private JList<ChatMessage> messageList;
-  private JTextField inputField;
-  private String otherUsername;
-  private String roomId;
+  private ClientApp app; // 부모 앱 참조
+  private DefaultListModel<ChatMessage> listModel; // 메시지 목록 모델
+  private JList<ChatMessage> messageList; // 메시지 표시 리스트
+  private JTextField inputField; // 메시지 입력 필드
+  private String otherUsername; // 상대방 또는 채팅방 이름
+  private String roomId; // 채팅방 고유 ID
 
+  /** 생성자: 1:1 채팅용 (상대방 이름으로 roomId 자동 생성) */
   public ChatPage(ClientApp app, String otherUsername) {
     ClientLogger.ui("ChatPage constructor called with otherUsername: " + otherUsername);
     this.app = app;
@@ -65,11 +70,11 @@ public class ChatPage extends JPanel implements SocketClient.MessageListener {
     titleLabel.setFont(new Font("SansSerif", Font.BOLD, 17));
     titleLabel.setForeground(KakaoColors.TEXT_PRIMARY);
 
-    // Member count - calculate from roomId
-    int memberCountNum = 2; // Default for 1:1 chat
+    // 참여자 수 - roomId에서 계산
+    int memberCountNum = 2; // 1:1 채팅 기본값
     if (roomId != null && roomId.startsWith("group_")) {
-      // Group chats will show actual count when we have it
-      memberCountNum = 2; // Placeholder, would need server sync
+      // 그룹 채팅의 경우 서버 동기화 필요
+      memberCountNum = 2;
     }
     JLabel memberCount = new JLabel(String.valueOf(memberCountNum));
     memberCount.setFont(new Font("SansSerif", Font.PLAIN, 13));
@@ -82,18 +87,7 @@ public class ChatPage extends JPanel implements SocketClient.MessageListener {
     header.add(backButton, BorderLayout.WEST);
     header.add(titlePanel, BorderLayout.CENTER);
 
-    // Right side icons
-    JPanel rightIcons = new JPanel(new FlowLayout(FlowLayout.RIGHT, 12, 0));
-    rightIcons.setOpaque(false);
-
-    JLabel searchIcon = new JLabel("🔍");
-    searchIcon.setFont(new Font("SansSerif", Font.PLAIN, 18));
-    JLabel menuIcon = new JLabel("≡");
-    menuIcon.setFont(new Font("SansSerif", Font.PLAIN, 22));
-
-    rightIcons.add(searchIcon);
-    rightIcons.add(menuIcon);
-    header.add(rightIcons, BorderLayout.EAST);
+    // Right side icons removed per user request
 
     add(header, BorderLayout.NORTH);
 
@@ -103,10 +97,9 @@ public class ChatPage extends JPanel implements SocketClient.MessageListener {
     messageList.setCellRenderer(new ChatBubbleRenderer());
     messageList.setBackground(KakaoColors.CHAT_BACKGROUND);
     messageList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
-    messageList.setFixedCellHeight(-1); // Allow variable heights
+    messageList.setFixedCellHeight(-1); // 가변 높이 허용
 
-    // Add click listener for game invite cards (buttons in cell renderer don't
-    // receive events)
+    // 게임 초대 카드 클릭 리스너 (CellRenderer의 버튼은 이벤트를 받지 못함)
     messageList.addMouseListener(new MouseAdapter() {
       @Override
       public void mouseClicked(MouseEvent e) {
@@ -126,47 +119,46 @@ public class ChatPage extends JPanel implements SocketClient.MessageListener {
     scrollPane.getVerticalScrollBar().setUnitIncrement(16);
     add(scrollPane, BorderLayout.CENTER);
 
-    // Input Area
+    // 입력 영역
     JPanel inputPanel = new JPanel(new BorderLayout(8, 0));
     inputPanel.setBackground(Color.WHITE);
     inputPanel.setBorder(BorderFactory.createCompoundBorder(
         BorderFactory.createMatteBorder(1, 0, 0, 0, KakaoColors.DIVIDER),
         BorderFactory.createEmptyBorder(8, 12, 8, 12)));
 
-    JButton plusButton = new JButton("+");
+    JButton plusButton = new JButton("사진");
     plusButton.setBorderPainted(false);
     plusButton.setContentAreaFilled(false);
-    plusButton.setFont(new Font("SansSerif", Font.PLAIN, 22));
+    plusButton.setFont(new Font("SansSerif", Font.PLAIN, 13));
     plusButton.setForeground(KakaoColors.TEXT_SECONDARY);
     plusButton.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-    plusButton.setPreferredSize(new Dimension(35, 35));
+    plusButton.setPreferredSize(new Dimension(50, 35));
     plusButton.addActionListener(this::sendImageAction);
 
-    JButton emojiButton = new JButton("☺");
+    JButton emojiButton = new JButton("이모티콘");
     emojiButton.setBorderPainted(false);
     emojiButton.setContentAreaFilled(false);
-    emojiButton.setFont(new Font("SansSerif", Font.PLAIN, 22));
+    emojiButton.setFont(new Font("SansSerif", Font.PLAIN, 13));
     emojiButton.setForeground(KakaoColors.TEXT_SECONDARY);
     emojiButton.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-    emojiButton.setPreferredSize(new Dimension(35, 35));
+    emojiButton.setPreferredSize(new Dimension(60, 35));
     emojiButton.addActionListener(e -> showEmoticonPopup(emojiButton));
 
-    JButton gameButton = new JButton("🎮");
+    JButton gameButton = new JButton("게임");
     gameButton.setBorderPainted(false);
     gameButton.setContentAreaFilled(false);
-    gameButton.setFont(new Font("Seguoe UI Emoji", Font.PLAIN, 20)); // Ensure emoji font
+    gameButton.setFont(new Font("SansSerif", Font.PLAIN, 13));
     gameButton.setForeground(KakaoColors.TEXT_SECONDARY);
     gameButton.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-    gameButton.setPreferredSize(new Dimension(35, 35));
-    gameButton.setPreferredSize(new Dimension(35, 35));
+    gameButton.setPreferredSize(new Dimension(50, 35));
     gameButton.addActionListener(e -> showGameSelectPopup(gameButton));
 
-    // Add hover effects to icon buttons
+    // 버튼 호버 효과 추가
     addHoverEffect(plusButton);
     addHoverEffect(emojiButton);
     addHoverEffect(gameButton);
 
-    // Input field with background
+    // 입력 필드 래퍼
     JPanel inputWrapper = new JPanel(new BorderLayout());
     inputWrapper.setBackground(new Color(245, 245, 245));
     inputWrapper.setBorder(BorderFactory.createEmptyBorder(8, 12, 8, 12));
@@ -188,13 +180,12 @@ public class ChatPage extends JPanel implements SocketClient.MessageListener {
     sendButton.setOpaque(true);
     sendButton.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
     sendButton.setPreferredSize(new Dimension(55, 35));
-    sendButton.setPreferredSize(new Dimension(55, 35));
     sendButton.addActionListener(this::sendMessage);
 
-    // Send button hover effect
+    // 전송 버튼 호버 효과
     sendButton.addMouseListener(new MouseAdapter() {
       public void mouseEntered(MouseEvent e) {
-        sendButton.setBackground(new Color(240, 215, 0)); // Slightly darker yellow
+        sendButton.setBackground(new Color(240, 215, 0)); // 약간 어두운 노란색
       }
 
       public void mouseExited(MouseEvent e) {
@@ -214,15 +205,18 @@ public class ChatPage extends JPanel implements SocketClient.MessageListener {
 
     add(inputPanel, BorderLayout.SOUTH);
 
-    // Set message listener BEFORE joining room (history is sent immediately on
-    // join)
+    // 메시지 리스너 설정 (room join 전에 설정 - 히스토리가 즉시 전송됨)
     if (app.getSocketClient() != null) {
       app.getSocketClient().setMessageListener(this);
-      app.getSocketClient().joinRoom(roomId);
+
+      // UI 문제 방지를 위해 백그라운드 스레드에서 네트워크 작업 수행
+      new Thread(() -> {
+        app.getSocketClient().joinRoom(roomId);
+      }).start();
     }
   }
 
-  // Generate room ID from two usernames (alphabetically sorted)
+  /** 두 사용자 이름에서 방 ID 생성 (알파벳 순으로 정렬) */
   private String generateRoomId(String user1, String user2) {
     if (user1.compareTo(user2) < 0) {
       return user1 + "_" + user2;
@@ -231,21 +225,23 @@ public class ChatPage extends JPanel implements SocketClient.MessageListener {
     }
   }
 
+  /** 메시지 전송 처리 */
   private void sendMessage(ActionEvent e) {
     String text = inputField.getText().trim();
     if (!text.isEmpty() && app.getSocketClient() != null) {
       app.getSocketClient().sendRoomMessage(roomId, text);
 
-      // Add to our own list
+      // 내 메시지 목록에 추가
       ChatMessage msg = new ChatMessage(app.getSocketClient().getUsername(), text, true);
       listModel.addElement(msg);
       inputField.setText("");
 
-      // Scroll to bottom
+      // 하단으로 스크롤
       messageList.ensureIndexIsVisible(listModel.getSize() - 1);
     }
   }
 
+  /** 이미지 전송 처리 */
   private void sendImageAction(ActionEvent e) {
     JFileChooser fileChooser = new JFileChooser();
     int result = fileChooser.showOpenDialog(this);
@@ -254,12 +250,12 @@ public class ChatPage extends JPanel implements SocketClient.MessageListener {
       if (app.getSocketClient() != null) {
         app.getSocketClient().sendRoomImage(roomId, selectedFile);
 
-        // Show immediately (optimize scaling)
+        // 즉시 표시 (스케일링 최적화)
         new Thread(() -> {
           try {
             ImageIcon icon = new ImageIcon(selectedFile.getAbsolutePath());
             Image img = icon.getImage();
-            // Scale off-EDT
+            // EDT 외부에서 스케일링
             Image resized = img.getScaledInstance(200, -1, Image.SCALE_SMOOTH);
             ImageIcon resizedIcon = new ImageIcon(resized);
 
@@ -276,6 +272,7 @@ public class ChatPage extends JPanel implements SocketClient.MessageListener {
     }
   }
 
+  /** 하단으로 스크롤 */
   private void scrollToBottom() {
     SwingUtilities.invokeLater(() -> {
       int lastIndex = listModel.getSize() - 1;
@@ -312,12 +309,12 @@ public class ChatPage extends JPanel implements SocketClient.MessageListener {
         });
       }
     } else if (message.startsWith("GAME_RESULT:")) {
-      // Format: GAME_RESULT:roomId:GAME_SYSTEM:scoreMsg
+      // 형식: GAME_RESULT:roomId:GAME_SYSTEM:scoreMsg
       String[] parts = message.split(":", 4);
       if (parts.length == 4) {
-        String sender = parts[2]; // GAME_SYSTEM
+        String sender = parts[2];
         String content = parts[3];
-        // Display as a special system message
+        // 시스템 메시지로 표시
         SwingUtilities.invokeLater(() -> {
           listModel.addElement(new ChatMessage(sender, "🎮 " + content, false));
           scrollToBottom();
@@ -329,7 +326,7 @@ public class ChatPage extends JPanel implements SocketClient.MessageListener {
   @Override
   public void onImageReceived(String sender, ImageIcon image) {
     new Thread(() -> {
-      // Resize off-EDT
+      // EDT 외부에서 리사이즈
       Image img = image.getImage();
       Image newImg = img.getScaledInstance(200, -1, Image.SCALE_SMOOTH);
       ImageIcon resizedIcon = new ImageIcon(newImg);
@@ -341,12 +338,13 @@ public class ChatPage extends JPanel implements SocketClient.MessageListener {
     }).start();
   }
 
+  /** 이모티콘 팝업 표시 */
   private void showEmoticonPopup(Component invoker) {
     EmoticonPopup popup = new EmoticonPopup(emojiName -> {
       if (app.getSocketClient() != null) {
         app.getSocketClient().sendRoomEmoji(roomId, emojiName);
 
-        // Add to local list (async image loading to avoid EDT blocking)
+        // 로컬 목록에 추가 (EDT 블로킹 방지를 위해 비동기 이미지 로딩)
         new Thread(() -> {
           ImageIcon icon = new ImageIcon("src/assets/emoticons/" + emojiName + ".png");
           Image img = icon.getImage().getScaledInstance(100, 100, Image.SCALE_SMOOTH);
@@ -362,12 +360,13 @@ public class ChatPage extends JPanel implements SocketClient.MessageListener {
     popup.show(invoker, 0, -200);
   }
 
+  /** 게임 선택 팝업 표시 */
   private void showGameSelectPopup(Component invoker) {
     GameSelectPopup popup = new GameSelectPopup(gameType -> {
       if (app.getSocketClient() != null) {
         app.getSocketClient().sendGameInvite(roomId, gameType);
 
-        // Add to local list
+        // 로컬 목록에 추가
         ChatMessage msg = new ChatMessage(app.getSocketClient().getUsername(), gameType, true, true);
         listModel.addElement(msg);
         scrollToBottom();
@@ -376,9 +375,10 @@ public class ChatPage extends JPanel implements SocketClient.MessageListener {
     popup.show(invoker, 0, -220);
   }
 
+  /** 이모지 수신 콜백 */
   @Override
   public void onEmojiReceived(String sender, String emojiName) {
-    // Load and scale image off EDT to avoid UI blocking
+    // EDT 블로킹 방지를 위해 이미지 로딩 및 스케일링
     new Thread(() -> {
       ImageIcon icon = new ImageIcon("src/assets/emoticons/" + emojiName + ".png");
       Image img = icon.getImage().getScaledInstance(100, 100, Image.SCALE_SMOOTH);
@@ -406,16 +406,16 @@ public class ChatPage extends JPanel implements SocketClient.MessageListener {
     }
   }
 
-  // Helper class for messages
+  /** 메시지 데이터 클래스 */
   private static class ChatMessage {
-    String sender;
-    String content;
-    ImageIcon image;
-    boolean isMine;
-    boolean isImage;
-    boolean isGameInvite; // New field
-    int unreadCount = 0; // New field
-    long timestamp;
+    String sender; // 발신자
+    String content; // 메시지 내용
+    ImageIcon image; // 이미지 (이미지 메시지인 경우)
+    boolean isMine; // 내 메시지 여부
+    boolean isImage; // 이미지 메시지 여부
+    boolean isGameInvite; // 게임 초대 여부
+    int unreadCount = 0; // 안읽은 수
+    long timestamp; // 타임스탬프
 
     public ChatMessage(String sender, String content, boolean isMine) {
       this.sender = sender;
@@ -426,6 +426,7 @@ public class ChatPage extends JPanel implements SocketClient.MessageListener {
       this.timestamp = System.currentTimeMillis();
     }
 
+    /** 이미지 메시지 생성자 */
     public ChatMessage(String sender, ImageIcon image, boolean isMine) {
       this.sender = sender;
       this.image = image;
@@ -435,10 +436,10 @@ public class ChatPage extends JPanel implements SocketClient.MessageListener {
       this.timestamp = System.currentTimeMillis();
     }
 
-    // Constructor for Game Invite
+    /** 게임 초대 메시지 생성자 */
     public ChatMessage(String sender, String gameType, boolean isMine, boolean isGameInvite) {
       this.sender = sender;
-      this.content = gameType; // Content stores the game type code
+      this.content = gameType; // 게임 타입 코드 저장
       this.isMine = isMine;
       this.isImage = false;
       this.isGameInvite = true;
@@ -448,7 +449,7 @@ public class ChatPage extends JPanel implements SocketClient.MessageListener {
 
   private final java.text.SimpleDateFormat timeFormat = new java.text.SimpleDateFormat("HH:mm");
 
-  // Custom Renderer with polished design
+  /** 채팅 버블 커스텀 렌더러 */
   private class ChatBubbleRenderer extends JPanel implements ListCellRenderer<ChatMessage> {
 
     public ChatBubbleRenderer() {

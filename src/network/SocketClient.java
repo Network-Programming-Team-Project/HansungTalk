@@ -5,32 +5,41 @@ import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.net.Socket;
 import util.ClientLogger;
+import util.SoundPlayer;
+import util.NotificationManager;
 
+/**
+ * 클라이언트 소켓 통신을 담당하는 클래스
+ * 서버와의 연결, 메시지 송수신, 하트비트 등을 관리
+ */
 public class SocketClient {
-  private String host;
-  private int port;
-  private Socket socket;
-  private BufferedReader reader;
-  private PrintWriter writer;
-  private volatile boolean running = false;
-  private MessageListener messageListener;
-  private String username;
-  private Thread heartbeatThread;
+  private String host; // 서버 호스트 주소
+  private int port; // 서버 포트 번호
+  private Socket socket; // 소켓 연결
+  private BufferedReader reader; // 서버로부터 데이터 수신
+  private PrintWriter writer; // 서버로 데이터 전송
+  private final Object writerLock = new Object(); // 소켓 쓰기 동기화 락
+  private volatile boolean running = false; // 연결 상태 플래그
+  private MessageListener messageListener; // 메시지 수신 리스너
+  private String username; // 현재 사용자 이름
+  private Thread heartbeatThread; // 하트비트 스레드 (연결 유지)
 
   public String getUsername() {
     return username;
   }
 
+  /** 메시지 수신 리스너 인터페이스 */
   public interface MessageListener {
-    void onMessageReceived(String message);
+    void onMessageReceived(String message); // 텍스트 메시지 수신
 
-    void onImageReceived(String sender, javax.swing.ImageIcon image);
+    void onImageReceived(String sender, javax.swing.ImageIcon image); // 이미지 수신
 
-    void onEmojiReceived(String sender, String emojiName);
+    void onEmojiReceived(String sender, String emojiName); // 이모티콘 수신
 
-    void onGameInviteReceived(String sender, String gameType);
+    void onGameInviteReceived(String sender, String gameType); // 게임 초대 수신
   }
 
+  /** 생성자: 서버 주소와 포트 설정 */
   public SocketClient(String host, int port) {
     this.host = host;
     this.port = port;
@@ -54,6 +63,32 @@ public class SocketClient {
 
   public void setUserListListener(UserListListener listener) {
     this.userListListener = listener;
+  }
+
+  // 안읽은 메시지 수 리스너
+  private UnreadListener unreadListener;
+  private java.util.Map<String, Integer> cachedUnreadCounts = new java.util.concurrent.ConcurrentHashMap<>();
+
+  public interface UnreadListener {
+    void onUnreadCountUpdated(String roomId, int count);
+
+    void onTotalUnreadUpdated(int totalCount);
+  }
+
+  public void setUnreadListener(UnreadListener listener) {
+    this.unreadListener = listener;
+  }
+
+  public java.util.Map<String, Integer> getCachedUnreadCounts() {
+    return cachedUnreadCounts;
+  }
+
+  public int getTotalUnreadCount() {
+    int total = 0;
+    for (int count : cachedUnreadCounts.values()) {
+      total += count;
+    }
+    return total;
   }
 
   // Profile listener for receiving profile data
@@ -122,6 +157,12 @@ public class SocketClient {
                   String content = parts[4];
                   // Pass formatted message to listener: MSG:sender:unreadCount:content
                   messageListener.onMessageReceived("MSG:" + sender + ":" + unreadCount + ":" + content);
+
+                  // 알림 및 사운드 재생 (다른 사람이 보낸 메시지일 때만)
+                  if (!sender.equals(username)) {
+                    SoundPlayer.playKakao();
+                    NotificationManager.showMessageNotification(sender, content);
+                  }
                 }
               }
             } else if (line.startsWith("HISTORY:ROOM_MSG:")) {
@@ -213,6 +254,21 @@ public class SocketClient {
                   String roomId = parts[1];
                   String content = parts[2];
                   userListListener.onChatListUpdate(roomId, content);
+                }
+              }
+            } else if (line.startsWith("UNREAD_UPDATE:")) {
+              // Format: UNREAD_UPDATE:roomId:count
+              String[] parts = line.split(":", 3);
+              if (parts.length == 3) {
+                String roomId = parts[1];
+                int count = Integer.parseInt(parts[2]);
+                cachedUnreadCounts.put(roomId, count);
+                if (unreadListener != null) {
+                  int total = getTotalUnreadCount();
+                  javax.swing.SwingUtilities.invokeLater(() -> {
+                    unreadListener.onUnreadCountUpdated(roomId, count);
+                    unreadListener.onTotalUnreadUpdated(total);
+                  });
                 }
               }
             } else if (line.startsWith("PROFILE:")) {
@@ -318,16 +374,29 @@ public class SocketClient {
 
   // Room-based messaging
   public void joinRoom(String roomId) {
-    if (writer != null) {
-      ClientLogger.network("Joining room: " + roomId);
-      writer.println("JOIN_ROOM:" + roomId + ":" + username);
+    synchronized (writerLock) {
+      if (writer != null) {
+        ClientLogger.network("Joining room: " + roomId);
+        writer.println("JOIN_ROOM:" + roomId + ":" + username);
+      }
+    }
+    // 로컬 캐시에서 안읽은 메시지 수 초기화 (락 밖에서 수행)
+    cachedUnreadCounts.put(roomId, 0);
+    if (unreadListener != null) {
+      int total = getTotalUnreadCount();
+      javax.swing.SwingUtilities.invokeLater(() -> {
+        unreadListener.onUnreadCountUpdated(roomId, 0);
+        unreadListener.onTotalUnreadUpdated(total);
+      });
     }
   }
 
   public void sendRoomMessage(String roomId, String message) {
-    if (writer != null) {
-      ClientLogger.network("Sending to room " + roomId + ": " + message);
-      writer.println("ROOM_MSG:" + roomId + ":" + username + ":" + message);
+    synchronized (writerLock) {
+      if (writer != null) {
+        ClientLogger.network("Sending to room " + roomId + ": " + message);
+        writer.println("ROOM_MSG:" + roomId + ":" + username + ":" + message);
+      }
     }
   }
 
@@ -335,8 +404,10 @@ public class SocketClient {
     try {
       byte[] fileContent = java.nio.file.Files.readAllBytes(file.toPath());
       String base64 = java.util.Base64.getEncoder().encodeToString(fileContent);
-      if (writer != null) {
-        writer.println("ROOM_IMG:" + roomId + ":" + username + ":" + base64);
+      synchronized (writerLock) {
+        if (writer != null) {
+          writer.println("ROOM_IMG:" + roomId + ":" + username + ":" + base64);
+        }
       }
     } catch (Exception e) {
       e.printStackTrace();
@@ -344,32 +415,42 @@ public class SocketClient {
   }
 
   public void inviteUser(String roomId, String targetUser) {
-    if (writer != null) {
-      writer.println("INVITE:" + roomId + ":" + targetUser);
+    synchronized (writerLock) {
+      if (writer != null) {
+        writer.println("INVITE:" + roomId + ":" + targetUser);
+      }
     }
   }
 
   public void sendRoomEmoji(String roomId, String emojiName) {
-    if (writer != null) {
-      writer.println("ROOM_EMOJI:" + roomId + ":" + username + ":" + emojiName);
+    synchronized (writerLock) {
+      if (writer != null) {
+        writer.println("ROOM_EMOJI:" + roomId + ":" + username + ":" + emojiName);
+      }
     }
   }
 
   public void sendGameInvite(String roomId, String gameType) {
-    if (writer != null) {
-      writer.println("ROOM_GAME_INVITE:" + roomId + ":" + username + ":" + gameType);
+    synchronized (writerLock) {
+      if (writer != null) {
+        writer.println("ROOM_GAME_INVITE:" + roomId + ":" + username + ":" + gameType);
+      }
     }
   }
 
   public void updateStatus(String status) {
-    if (writer != null) {
-      writer.println("UPDATE_STATUS:" + status);
+    synchronized (writerLock) {
+      if (writer != null) {
+        writer.println("UPDATE_STATUS:" + status);
+      }
     }
   }
 
   public void requestProfile(String targetUsername) {
-    if (writer != null) {
-      writer.println("GET_PROFILE:" + targetUsername);
+    synchronized (writerLock) {
+      if (writer != null) {
+        writer.println("GET_PROFILE:" + targetUsername);
+      }
     }
   }
 

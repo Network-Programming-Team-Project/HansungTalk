@@ -4,10 +4,15 @@ import javax.swing.*;
 import java.awt.*;
 import java.awt.event.ActionEvent;
 
+/**
+ * 로그인 페이지 UI 클래스
+ * 사용자 이름 입력 및 로그인 처리
+ */
 public class LoginPage extends JPanel {
-  private ClientApp app;
-  private JTextField usernameField;
+  private ClientApp app; // 부모 앱 참조
+  private JTextField usernameField; // 사용자 이름 입력 필드
 
+  /** 생성자: UI 초기화 */
   public LoginPage(ClientApp app) {
     this.app = app;
     setLayout(new GridBagLayout());

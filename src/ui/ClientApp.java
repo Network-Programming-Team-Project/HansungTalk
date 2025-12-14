@@ -6,11 +6,16 @@ import util.ClientLogger;
 import javax.swing.*;
 import java.awt.*;
 
+/**
+ * 클라이언트 애플리케이션의 메인 클래스
+ * 페이지 전환, 소켓 클라이언트 관리 등 전체 앱 제어
+ */
 public class ClientApp extends JFrame {
-  private CardLayout cardLayout;
-  private JPanel mainPanel;
-  private SocketClient socketClient;
+  private CardLayout cardLayout; // 페이지 전환용 레이아웃
+  private JPanel mainPanel; // 메인 컨테이너 패널
+  private SocketClient socketClient; // 서버 연결 소켓 클라이언트
 
+  /** 생성자: 앱 초기화 */
   public ClientApp() {
     setTitle("KakaoTalk");
     setSize(380, 640); // More mobile-like ratio
