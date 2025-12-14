@@ -193,6 +193,26 @@ public class SocketServer {
     }
   }
 
+  /**
+   * 게임 결과를 방의 모든 멤버에게 전송 (발신자 제외 없이 전체 전송)
+   */
+  public void broadcastGameResultToRoom(String roomId, String message) {
+    ensureRoomMembers(roomId);
+
+    Set<String> members = roomAllMembers.get(roomId);
+    if (members == null || members.isEmpty()) {
+      log("No members found for room: " + roomId);
+      return;
+    }
+
+    log("Broadcasting game result to room " + roomId + " (members: " + members + "): " + message);
+    for (SocketClientHandler client : clients) {
+      if (client.getUsername() != null && members.contains(client.getUsername())) {
+        client.sendMessage(message);
+      }
+    }
+  }
+
   public void removeClient(SocketClientHandler client) {
     clients.remove(client);
     updateClientCount();
@@ -305,6 +325,8 @@ public class SocketServer {
             String[] parts = line.split(":", 4);
             if (parts.length == 4) {
               String roomId = parts[1];
+              // 히스토리에 저장 (채팅방 재입장 시 이모티콘 유지)
+              server.saveMessage(roomId, line);
               server.broadcastToRoom(roomId, line, username);
               server.notifyChatListUpdate(roomId, "이모티콘", username);
             }
@@ -350,13 +372,29 @@ public class SocketServer {
               String roomId = parts[1];
               String gameType = parts[2];
               String scoreMsg = parts[3];
-              String senderName = "GAME_SYSTEM";
 
-              // Try to parse score from message and save
-              server.saveGameScore(username, gameType, scoreMsg);
+              // Try to parse score from message and save (username is null for game clients)
+              if (username != null) {
+                server.saveGameScore(username, gameType, scoreMsg);
+              } else {
+                // 게임 클라이언트에서 전송 시 메시지에서 유저명 추출
+                java.util.regex.Matcher m = java.util.regex.Pattern.compile("^(.+?)님").matcher(scoreMsg);
+                if (m.find()) {
+                  server.saveGameScore(m.group(1), gameType, scoreMsg);
+                }
+              }
 
-              // Broadcast to room
-              server.broadcastToRoom(roomId, line, senderName);
+              // 모든 방 멤버에게 게임 결과 전송 (발신자 제외 없이 전체 전송)
+              server.broadcastGameResultToRoom(roomId, line);
+            }
+          } else if (line.startsWith("TYPING:")) {
+            // Format: TYPING:roomId:username:START or TYPING:roomId:username:STOP
+            String[] parts = line.split(":", 4);
+            if (parts.length == 4) {
+              String roomId = parts[1];
+              String typingUser = parts[2];
+              // 입력중 상태를 방의 다른 멤버들에게 전송
+              server.broadcastToRoom(roomId, line, typingUser);
             }
           } else if (line.startsWith("GET_PROFILE:")) {
             // Format: GET_PROFILE:targetUsername

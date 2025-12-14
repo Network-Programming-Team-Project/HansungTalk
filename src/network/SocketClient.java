@@ -37,6 +37,8 @@ public class SocketClient {
     void onEmojiReceived(String sender, String emojiName); // 이모티콘 수신
 
     void onGameInviteReceived(String sender, String gameType); // 게임 초대 수신
+
+    void onTypingStatusReceived(String username, boolean isTyping); // 입력중 상태 수신
   }
 
   /** 생성자: 서버 주소와 포트 설정 */
@@ -189,7 +191,19 @@ public class SocketClient {
                   javax.swing.SwingUtilities.invokeLater(() -> messageListener.onGameInviteReceived(sender, gameType));
                 }
               }
+            } else if (line.startsWith("HISTORY:ROOM_EMOJI:")) {
+              // Format: HISTORY:ROOM_EMOJI:roomId:sender:emojiName
+              if (messageListener != null) {
+                String historyContent = line.substring(8); // Remove "HISTORY:" prefix
+                String[] parts = historyContent.split(":", 4);
+                if (parts.length == 4) {
+                  String sender = parts[2];
+                  String emojiName = parts[3];
+                  javax.swing.SwingUtilities.invokeLater(() -> messageListener.onEmojiReceived(sender, emojiName));
+                }
+              }
             } else if (line.startsWith("ROOM_IMG:")) {
+
               // Format: ROOM_IMG:roomId:sender:base64
               if (messageListener != null) {
                 int firstColon = line.indexOf(':');
@@ -232,6 +246,16 @@ public class SocketClient {
                   String sender = parts[2];
                   String gameType = parts[3];
                   messageListener.onGameInviteReceived(sender, gameType);
+                }
+              }
+            } else if (line.startsWith("TYPING:")) {
+              // Format: TYPING:roomId:username:START or TYPING:roomId:username:STOP
+              if (messageListener != null) {
+                String[] parts = line.split(":", 4);
+                if (parts.length == 4) {
+                  String typingUser = parts[2];
+                  boolean isTyping = "START".equals(parts[3]);
+                  messageListener.onTypingStatusReceived(typingUser, isTyping);
                 }
               }
             } else if (line.startsWith("IMG:")) {
@@ -450,6 +474,21 @@ public class SocketClient {
     synchronized (writerLock) {
       if (writer != null) {
         writer.println("GET_PROFILE:" + targetUsername);
+      }
+    }
+  }
+
+  /**
+   * 입력중 상태 전송
+   * 
+   * @param roomId   채팅방 ID
+   * @param isTyping 입력중 여부 (true: 시작, false: 종료)
+   */
+  public void sendTypingStatus(String roomId, boolean isTyping) {
+    synchronized (writerLock) {
+      if (writer != null) {
+        String status = isTyping ? "START" : "STOP";
+        writer.println("TYPING:" + roomId + ":" + username + ":" + status);
       }
     }
   }

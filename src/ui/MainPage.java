@@ -145,45 +145,43 @@ public class MainPage extends JPanel {
               String nameWithSuffix = parts[0].trim();
               String statusMsg = parts.length > 1 ? parts[1] : "";
               String targetUser = nameWithSuffix.replace(" (Me)", "");
-              util.ClientLogger.ui("Target user: " + targetUser + ", is self: " + nameWithSuffix.endsWith(" (Me)"));
+              boolean isSelf = nameWithSuffix.endsWith(" (Me)");
+              util.ClientLogger.ui("Target user: " + targetUser + ", is self: " + isSelf);
 
-              // Don't show profile for self
-              if (!nameWithSuffix.endsWith(" (Me)")) {
-                util.ClientLogger.ui("Showing profile for: " + targetUser);
+              // Request profile from server
+              final String finalTargetUser = targetUser;
+              final String finalStatusMsg = statusMsg;
+              final boolean finalIsSelf = isSelf;
 
-                // Request profile from server
-                final String finalTargetUser = targetUser;
-                final String finalStatusMsg = statusMsg;
+              // Check if we have cached profile
+              java.util.Map<String, Integer> cachedScores = app.getSocketClient().getCachedProfile(targetUser);
 
-                // Check if we have cached profile
-                java.util.Map<String, Integer> cachedScores = app.getSocketClient().getCachedProfile(targetUser);
+              if (cachedScores != null) {
+                // Use cached scores directly
+                showProfilePopup(finalTargetUser, finalStatusMsg, cachedScores, finalIsSelf);
+              } else {
+                // Request in background, then show popup on EDT
+                new Thread(() -> {
+                  // Request profile (network call - must be off EDT)
+                  app.getSocketClient().requestProfile(finalTargetUser);
 
-                if (cachedScores != null) {
-                  // Use cached scores directly
-                  showProfilePopup(finalTargetUser, finalStatusMsg, cachedScores);
-                } else {
-                  // Request in background, then show popup on EDT
-                  new Thread(() -> {
-                    // Request profile (network call - must be off EDT)
-                    app.getSocketClient().requestProfile(finalTargetUser);
+                  // Wait a bit for response to arrive
+                  try {
+                    Thread.sleep(200);
+                  } catch (Exception ex) {
+                  }
 
-                    // Wait a bit for response to arrive
-                    try {
-                      Thread.sleep(200);
-                    } catch (Exception ex) {
-                    }
-
-                    // Show popup on EDT with whatever we got
-                    javax.swing.SwingUtilities.invokeLater(() -> {
-                      java.util.Map<String, Integer> scores = app.getSocketClient().getCachedProfile(finalTargetUser);
-                      if (scores == null)
-                        scores = new java.util.HashMap<>();
-                      showProfilePopup(finalTargetUser, finalStatusMsg, scores);
-                    });
-                  }).start();
-                }
+                  // Show popup on EDT with whatever we got
+                  javax.swing.SwingUtilities.invokeLater(() -> {
+                    java.util.Map<String, Integer> scores = app.getSocketClient().getCachedProfile(finalTargetUser);
+                    if (scores == null)
+                      scores = new java.util.HashMap<>();
+                    showProfilePopup(finalTargetUser, finalStatusMsg, scores, finalIsSelf);
+                  });
+                }).start();
               }
             }
+
           }
         }
       }
@@ -696,16 +694,19 @@ public class MainPage extends JPanel {
     return new String[] { name, status };
   }
 
-  private void showProfilePopup(String targetUser, String statusMsg, java.util.Map<String, Integer> scores) {
+  private void showProfilePopup(String targetUser, String statusMsg, java.util.Map<String, Integer> scores,
+      boolean isSelf) {
     UserProfilePopup popup = new UserProfilePopup(
         (java.awt.Frame) SwingUtilities.getWindowAncestor(MainPage.this),
         targetUser,
         statusMsg,
         scores,
+        isSelf,
         username -> {
           util.ClientLogger.ui("Starting chat with: " + username);
           app.showChatWith(username);
         });
     popup.setVisible(true);
   }
+
 }

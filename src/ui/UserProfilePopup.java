@@ -13,14 +13,16 @@ public class UserProfilePopup extends JDialog {
   private String username;
   private String statusMessage;
   private Map<String, Integer> gameScores; // gameType -> best score
+  private boolean isSelf; // 자신의 프로필인지 여부
   private Consumer<String> onChatClicked;
 
   public UserProfilePopup(Frame owner, String username, String statusMessage,
-      Map<String, Integer> gameScores, Consumer<String> onChatClicked) {
+      Map<String, Integer> gameScores, boolean isSelf, Consumer<String> onChatClicked) {
     super(owner, "프로필", true);
     this.username = username;
     this.statusMessage = statusMessage != null ? statusMessage : "";
     this.gameScores = gameScores != null ? gameScores : new HashMap<>();
+    this.isSelf = isSelf;
     this.onChatClicked = onChatClicked;
 
     initUI();
@@ -121,27 +123,30 @@ public class UserProfilePopup extends JDialog {
     buttonPanel.setBackground(new Color(248, 248, 248));
     buttonPanel.setBorder(BorderFactory.createMatteBorder(1, 0, 0, 0, new Color(230, 230, 230)));
 
-    JButton chatButton = new JButton("1:1 채팅");
-    chatButton.setFont(new Font("SansSerif", Font.BOLD, 14));
-    chatButton.setBackground(KakaoColors.KAKAO_YELLOW);
-    chatButton.setForeground(KakaoColors.KAKAO_BROWN);
-    chatButton.setPreferredSize(new Dimension(120, 36));
-    chatButton.setBorderPainted(false);
-    chatButton.setFocusPainted(false);
-    chatButton.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-    chatButton.addActionListener(e -> {
-      dispose();
-      if (onChatClicked != null) {
-        onChatClicked.accept(username);
-      }
-    });
+    // 1:1 채팅 버튼: 자신의 프로필이 아닐 때만 표시
+    if (!isSelf) {
+      JButton chatButton = new JButton("1:1 채팅");
+      chatButton.setFont(new Font("SansSerif", Font.BOLD, 14));
+      chatButton.setBackground(KakaoColors.KAKAO_YELLOW);
+      chatButton.setForeground(KakaoColors.KAKAO_BROWN);
+      chatButton.setPreferredSize(new Dimension(120, 36));
+      chatButton.setBorderPainted(false);
+      chatButton.setFocusPainted(false);
+      chatButton.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+      chatButton.addActionListener(e -> {
+        dispose();
+        if (onChatClicked != null) {
+          onChatClicked.accept(username);
+        }
+      });
+      buttonPanel.add(chatButton);
+    }
 
     JButton closeButton = new JButton("닫기");
     closeButton.setFont(new Font("SansSerif", Font.PLAIN, 14));
     closeButton.setPreferredSize(new Dimension(80, 36));
     closeButton.addActionListener(e -> dispose());
 
-    buttonPanel.add(chatButton);
     buttonPanel.add(closeButton);
 
     add(buttonPanel, BorderLayout.SOUTH);

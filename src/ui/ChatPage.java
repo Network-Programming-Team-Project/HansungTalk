@@ -4,6 +4,8 @@ import network.SocketClient;
 import util.ClientLogger;
 
 import javax.swing.*;
+import javax.swing.event.DocumentEvent;
+import javax.swing.event.DocumentListener;
 import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.MouseAdapter;
@@ -21,6 +23,11 @@ public class ChatPage extends JPanel implements SocketClient.MessageListener {
   private JTextField inputField; // 메시지 입력 필드
   private String otherUsername; // 상대방 또는 채팅방 이름
   private String roomId; // 채팅방 고유 ID
+
+  // 입력중 표시 관련 필드
+  private JLabel typingIndicatorLabel; // 입력중 표시 라벨
+  private Timer typingTimer; // 입력 종료 감지 타이머
+  private boolean isCurrentlyTyping = false; // 현재 입력중 여부
 
   /** 생성자: 1:1 채팅용 (상대방 이름으로 roomId 자동 생성) */
   public ChatPage(ClientApp app, String otherUsername) {
@@ -117,7 +124,22 @@ public class ChatPage extends JPanel implements SocketClient.MessageListener {
     JScrollPane scrollPane = new JScrollPane(messageList);
     scrollPane.setBorder(null);
     scrollPane.getVerticalScrollBar().setUnitIncrement(16);
-    add(scrollPane, BorderLayout.CENTER);
+
+    // 입력중 인디케이터 패널 (scroll pane과 input panel 사이에 위치)
+    typingIndicatorLabel = new JLabel("");
+    typingIndicatorLabel.setFont(new Font("SansSerif", Font.ITALIC, 12));
+    typingIndicatorLabel.setForeground(KakaoColors.TEXT_SECONDARY);
+    typingIndicatorLabel.setBorder(BorderFactory.createEmptyBorder(4, 16, 4, 16));
+    typingIndicatorLabel.setBackground(KakaoColors.CHAT_BACKGROUND);
+    typingIndicatorLabel.setOpaque(true);
+    typingIndicatorLabel.setVisible(false);
+
+    // 중앙 패널: 스크롤 + 입력중 표시
+    JPanel centerPanel = new JPanel(new BorderLayout());
+    centerPanel.add(scrollPane, BorderLayout.CENTER);
+    centerPanel.add(typingIndicatorLabel, BorderLayout.SOUTH);
+
+    add(centerPanel, BorderLayout.CENTER);
 
     // 입력 영역
     JPanel inputPanel = new JPanel(new BorderLayout(8, 0));
@@ -168,6 +190,51 @@ public class ChatPage extends JPanel implements SocketClient.MessageListener {
     inputField.setFont(new Font("SansSerif", Font.PLAIN, 14));
     inputField.setBackground(new Color(245, 245, 245));
     inputField.addActionListener(this::sendMessage);
+
+    // 입력중 상태 감지 및 전송
+    typingTimer = new Timer(1500, e -> {
+      if (isCurrentlyTyping && app.getSocketClient() != null) {
+        isCurrentlyTyping = false;
+        app.getSocketClient().sendTypingStatus(roomId, false);
+      }
+    });
+    typingTimer.setRepeats(false);
+
+    inputField.getDocument().addDocumentListener(new DocumentListener() {
+      @Override
+      public void insertUpdate(DocumentEvent e) {
+        onTextChanged();
+      }
+
+      @Override
+      public void removeUpdate(DocumentEvent e) {
+        onTextChanged();
+      }
+
+      @Override
+      public void changedUpdate(DocumentEvent e) {
+        onTextChanged();
+      }
+
+      private void onTextChanged() {
+        if (app.getSocketClient() == null)
+          return;
+        String text = inputField.getText();
+        if (text.isEmpty()) {
+          if (isCurrentlyTyping) {
+            isCurrentlyTyping = false;
+            app.getSocketClient().sendTypingStatus(roomId, false);
+          }
+          typingTimer.stop();
+        } else {
+          if (!isCurrentlyTyping) {
+            isCurrentlyTyping = true;
+            app.getSocketClient().sendTypingStatus(roomId, true);
+          }
+          typingTimer.restart();
+        }
+      }
+    });
 
     inputWrapper.add(inputField, BorderLayout.CENTER);
 
@@ -230,6 +297,13 @@ public class ChatPage extends JPanel implements SocketClient.MessageListener {
     String text = inputField.getText().trim();
     if (!text.isEmpty() && app.getSocketClient() != null) {
       app.getSocketClient().sendRoomMessage(roomId, text);
+
+      // 입력중 상태 종료
+      if (isCurrentlyTyping) {
+        isCurrentlyTyping = false;
+        app.getSocketClient().sendTypingStatus(roomId, false);
+      }
+      typingTimer.stop();
 
       // 내 메시지 목록에 추가
       ChatMessage msg = new ChatMessage(app.getSocketClient().getUsername(), text, true);
@@ -395,6 +469,18 @@ public class ChatPage extends JPanel implements SocketClient.MessageListener {
     SwingUtilities.invokeLater(() -> {
       listModel.addElement(new ChatMessage(sender, gameType, false, true));
       scrollToBottom();
+    });
+  }
+
+  @Override
+  public void onTypingStatusReceived(String username, boolean isTyping) {
+    SwingUtilities.invokeLater(() -> {
+      if (isTyping) {
+        typingIndicatorLabel.setText(username + "님이 입력중...");
+        typingIndicatorLabel.setVisible(true);
+      } else {
+        typingIndicatorLabel.setVisible(false);
+      }
     });
   }
 
