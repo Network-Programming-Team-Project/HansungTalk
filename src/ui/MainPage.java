@@ -126,7 +126,8 @@ public class MainPage extends JPanel {
             if (currentTab == Tab.CHATS) {
               // Open the chat room
               String roomId = selected;
-              util.ClientLogger.ui("Opening chat room: " + roomId);
+              util.ClientLogger.ui("[DEBUG] CHATS tab - Opening chat room: " + roomId);
+              util.ClientLogger.ui("[DEBUG] About to call showGroupChat...");
 
               // Generate a friendly room name
               String roomName = roomId;
@@ -138,7 +139,9 @@ public class MainPage extends JPanel {
                   roomName = users[0].equals(myName) ? users[1] : users[0];
                 }
               }
+              util.ClientLogger.ui("[DEBUG] Calling showGroupChat with roomId=" + roomId + ", roomName=" + roomName);
               app.showGroupChat(roomId, roomName);
+              util.ClientLogger.ui("[DEBUG] showGroupChat returned successfully");
             } else if (currentTab == Tab.FRIENDS) {
               // Parse username - extract from "name|status" or "name (Me)|status" format
               String[] parts = selected.split("\\|");
@@ -379,10 +382,13 @@ public class MainPage extends JPanel {
   }
 
   private void switchTab(Tab tab) {
+    util.ClientLogger.ui("[DEBUG] switchTab called with tab: " + tab);
     currentTab = tab;
+    util.ClientLogger.ui("[DEBUG] Repainting tab buttons...");
     friendsBtn.repaint();
     chatsBtn.repaint();
     moreBtn.repaint();
+    util.ClientLogger.ui("[DEBUG] Tab buttons repainted");
 
     listModel.clear();
     if (tab == Tab.FRIENDS) {
@@ -412,7 +418,9 @@ public class MainPage extends JPanel {
       addMouseListener(new MouseAdapter() {
         @Override
         public void mousePressed(MouseEvent e) {
+          util.ClientLogger.ui("[DEBUG] SidebarButton mousePressed for tab: " + tab);
           switchTab(tab);
+          util.ClientLogger.ui("[DEBUG] SidebarButton mousePressed completed");
         }
 
         @Override

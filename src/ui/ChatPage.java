@@ -24,28 +24,30 @@ public class ChatPage extends JPanel implements SocketClient.MessageListener {
 
   /** 생성자: 1:1 채팅용 (상대방 이름으로 roomId 자동 생성) */
   public ChatPage(ClientApp app, String otherUsername) {
-    ClientLogger.ui("ChatPage constructor called with otherUsername: " + otherUsername);
+    ClientLogger.ui("[DEBUG] ChatPage constructor(1:1) START - otherUsername: " + otherUsername);
     this.app = app;
     this.otherUsername = otherUsername;
-    ClientLogger.ui("Generating roomId...");
+    ClientLogger.ui("[DEBUG] Generating roomId...");
     this.roomId = generateRoomId(app.getSocketClient().getUsername(), otherUsername);
-    ClientLogger.ui("Generated roomId: " + roomId);
+    ClientLogger.ui("[DEBUG] Generated roomId: " + roomId);
 
     initUI(otherUsername);
-    ClientLogger.ui("ChatPage initUI completed");
+    ClientLogger.ui("[DEBUG] ChatPage constructor(1:1) END");
   }
 
   public ChatPage(ClientApp app, String roomName, String roomId) {
-    ClientLogger.ui("ChatPage constructor called with roomName: " + roomName + ", roomId: " + roomId);
+    ClientLogger.ui("[DEBUG] ChatPage constructor(group) START - roomName: " + roomName + ", roomId: " + roomId);
     this.app = app;
     this.otherUsername = roomName; // Use room name as display name
     this.roomId = roomId;
 
+    ClientLogger.ui("[DEBUG] Calling initUI...");
     initUI(roomName);
-    ClientLogger.ui("ChatPage initUI completed");
+    ClientLogger.ui("[DEBUG] ChatPage constructor(group) END");
   }
 
   private void initUI(String title) {
+    ClientLogger.ui("[DEBUG] initUI START - title: " + title);
     setLayout(new BorderLayout());
 
     // Header
@@ -205,15 +207,25 @@ public class ChatPage extends JPanel implements SocketClient.MessageListener {
 
     add(inputPanel, BorderLayout.SOUTH);
 
+    ClientLogger.ui("[DEBUG] initUI - UI components created, setting up message listener...");
+
     // 메시지 리스너 설정 (room join 전에 설정 - 히스토리가 즉시 전송됨)
     if (app.getSocketClient() != null) {
+      ClientLogger.ui("[DEBUG] initUI - Setting message listener...");
       app.getSocketClient().setMessageListener(this);
+      ClientLogger.ui("[DEBUG] initUI - Message listener set, starting joinRoom in background...");
 
       // UI 문제 방지를 위해 백그라운드 스레드에서 네트워크 작업 수행
       new Thread(() -> {
+        ClientLogger.ui("[DEBUG] Background thread - calling joinRoom for: " + roomId);
         app.getSocketClient().joinRoom(roomId);
+        ClientLogger.ui("[DEBUG] Background thread - joinRoom completed");
       }).start();
+      ClientLogger.ui("[DEBUG] initUI - joinRoom thread started");
+    } else {
+      ClientLogger.ui("[DEBUG] initUI - WARNING: socketClient is NULL!");
     }
+    ClientLogger.ui("[DEBUG] initUI END");
   }
 
   /** 두 사용자 이름에서 방 ID 생성 (알파벳 순으로 정렬) */

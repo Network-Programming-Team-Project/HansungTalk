@@ -58,11 +58,17 @@ public class ClientApp extends JFrame {
   }
 
   public void showGroupChat(String roomId, String roomName) {
-    ClientLogger.page("Opening group chat: " + roomName + " (" + roomId + ")");
+    ClientLogger.page("[DEBUG] showGroupChat START - roomName: " + roomName + ", roomId: " + roomId);
+    ClientLogger.page("[DEBUG] Creating ChatPage...");
     ChatPage chatPage = new ChatPage(this, roomName, roomId);
+    ClientLogger.page("[DEBUG] ChatPage created successfully");
+    ClientLogger.page("[DEBUG] Removing old chat panel...");
     mainPanel.remove(2);
+    ClientLogger.page("[DEBUG] Adding new ChatPage...");
     mainPanel.add(chatPage, "Chat");
+    ClientLogger.page("[DEBUG] Showing Chat panel via CardLayout...");
     cardLayout.show(mainPanel, "Chat");
+    ClientLogger.page("[DEBUG] showGroupChat END");
   }
 
   public static void main(String[] args) {
