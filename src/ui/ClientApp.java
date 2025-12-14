@@ -1,0 +1,68 @@
+package ui;
+
+import network.SocketClient;
+import util.ClientLogger;
+
+import javax.swing.*;
+import java.awt.*;
+
+public class ClientApp extends JFrame {
+  private CardLayout cardLayout;
+  private JPanel mainPanel;
+  private SocketClient socketClient;
+
+  public ClientApp() {
+    setTitle("KakaoTalk");
+    setSize(380, 640); // More mobile-like ratio
+    setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+    setLocationRelativeTo(null);
+
+    socketClient = new SocketClient("localhost", 12345);
+
+    cardLayout = new CardLayout();
+    mainPanel = new JPanel(cardLayout);
+
+    // Add Pages
+    mainPanel.add(new LoginPage(this), "Login");
+    mainPanel.add(new MainPage(this), "Main");
+    // Initial dummy chat page (will be replaced when user clicks a friend)
+    mainPanel.add(new JPanel(), "Chat");
+
+    add(mainPanel);
+
+    setVisible(true);
+    ClientLogger.ui("ClientApp initialized");
+  }
+
+  public SocketClient getSocketClient() {
+    return socketClient;
+  }
+
+  public void showPage(String page) {
+    ClientLogger.page("Navigating to: " + page);
+    cardLayout.show(mainPanel, page);
+  }
+
+  public void showChatWith(String otherUsername) {
+    ClientLogger.page("Opening chat with: " + otherUsername);
+    // Navigate to chat page with specific user
+    ChatPage chatPage = new ChatPage(this, otherUsername);
+    mainPanel.remove(2); // Remove old chat page
+    mainPanel.add(chatPage, "Chat");
+    cardLayout.show(mainPanel, "Chat");
+  }
+
+  public void showGroupChat(String roomId, String roomName) {
+    ClientLogger.page("Opening group chat: " + roomName + " (" + roomId + ")");
+    ChatPage chatPage = new ChatPage(this, roomName, roomId);
+    mainPanel.remove(2);
+    mainPanel.add(chatPage, "Chat");
+    cardLayout.show(mainPanel, "Chat");
+  }
+
+  public static void main(String[] args) {
+    SwingUtilities.invokeLater(() -> {
+      new ClientApp();
+    });
+  }
+}
